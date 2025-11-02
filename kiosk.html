@@ -4,41 +4,100 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lost & Found Kiosk</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 40px; }
-    input, textarea { width: 90%; margin: 10px 0; padding: 10px; font-size: 18px; }
-    button { padding: 10px 20px; font-size: 20px; }
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    input, textarea, button { font-size: 18px; margin: 10px 0; padding: 10px; }
+    .item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+    #screensaver { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#333; color:white; font-size:48px; justify-content:center; align-items:center; }
   </style>
 </head>
 <body>
-  <h1>Lost & Found</h1>
-  <form id="lostForm">
+  <div id="screensaver">Touch to Start</div>
+
+  <div id="startScreen">
+    <h1>Welcome to Lost & Found</h1>
+    <button onclick="startForm()">Start</button>
+  </div>
+
+  <div id="formScreen" style="display:none;">
+    <h2>Enter Your Information</h2>
     <input type="text" id="name" placeholder="Your name" required><br>
-    <textarea id="item" placeholder="Describe what you lost" required></textarea><br>
-    <input type="text" id="contact" placeholder="Email or phone"><br>
-    <button type="submit">Submit</button>
-  </form>
-  <p id="message"></p>
+    <input type="text" id="contact" placeholder="Email or phone" required><br>
+    <div id="itemsContainer"></div>
+    <button onclick="addItem()">+ Add Item</button><br>
+    <button onclick="submitForm()">Submit</button>
+    <p id="message"></p>
+  </div>
 
   <script>
-    const form = document.getElementById("lostForm");
-    form.addEventListener("submit", async e => {
-      e.preventDefault();
-      const data = {
-        name: document.getElementById("name").value,
-        item: document.getElementById("item").value,
-        contact: document.getElementById("contact").value
-      };
+    let idleTimer;
+    const idleTime = 60000; // 60 seconds
+
+    function resetIdle() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(showScreensaver, idleTime);
+    }
+
+    function showScreensaver() {
+      document.getElementById("screensaver").style.display = "flex";
+      document.getElementById("formScreen").style.display = "none";
+      document.getElementById("startScreen").style.display = "none";
+    }
+
+    document.body.addEventListener("mousemove", resetIdle);
+    document.body.addEventListener("keydown", resetIdle);
+    document.getElementById("screensaver").addEventListener("click", startForm);
+
+    resetIdle();
+
+    function startForm() {
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("screensaver").style.display = "none";
+      document.getElementById("formScreen").style.display = "block";
+      if (document.getElementById("itemsContainer").children.length === 0) addItem();
+    }
+
+    function addItem() {
+      const container = document.getElementById("itemsContainer");
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <input type="text" placeholder="Item name" required><br>
+        <textarea placeholder="Description" required></textarea><br>
+        <input type="text" placeholder="Comments (optional)">
+      `;
+      container.appendChild(div);
+    }
+
+    async function submitForm() {
+      const name = document.getElementById("name").value.trim();
+      const contact = document.getElementById("contact").value.trim();
+      if (!name || !contact) { alert("Name and contact are required"); return; }
+
+      const items = Array.from(document.querySelectorAll(".item")).map(div => {
+        const inputs = div.querySelectorAll("input, textarea");
+        return {
+          name: inputs[0].value.trim(),
+          description: inputs[1].value.trim(),
+          comments: inputs[2].value.trim()
+        };
+      });
+
+      if (items.some(i => !i.name || !i.description)) { alert("All item names and descriptions are required"); return; }
+
       const res = await fetch("/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ name, contact, items })
       });
       const result = await res.json();
       if (result.success) {
-        document.getElementById("message").innerText = "Ticket submitted! Your ID: " + result.ticket.id;
-        form.reset();
+        document.getElementById("message").innerText = `Ticket submitted! Your ID: ${result.ticket.id}`;
+        document.getElementById("formScreen").reset;
+        document.getElementById("itemsContainer").innerHTML = "";
+      } else {
+        document.getElementById("message").innerText = "Error submitting ticket.";
       }
-    });
+    }
   </script>
 </body>
 </html>
