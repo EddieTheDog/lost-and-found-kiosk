@@ -7,59 +7,69 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 <body>
-<h1>Lost & Found Submission</h1>
-<form id="kioskForm">
-  <label>Your Name:<input type="text" name="name" required></label><br>
-  <label>Item Name:<input type="text" name="item" required></label><br>
-  <label>Description:<input type="text" name="description"></label><br>
-  <button type="submit">Submit</button>
-</form>
-
-<div id="qrContainer" style="display:none;">
-  <h2>Scan to Track</h2>
-  <canvas id="qrcode"></canvas>
-  <p id="trackingNumber"></p>
+<div class="container">
+  <h1>Lost & Found Kiosk</h1>
+  <div id="form-container">
+    <form id="ticketForm">
+      <div id="items">
+        <div class="item">
+          <input name="name" placeholder="Item name" required>
+          <input name="description" placeholder="Description" required>
+        </div>
+      </div>
+      <button type="button" id="addItem">+ Add Item</button>
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+  <div id="qr-container" style="display:none;">
+    <h2>Your Ticket</h2>
+    <p>Ticket #: <span id="ticket-number"></span></p>
+    <canvas id="qrcode"></canvas>
+    <button id="doneBtn">Done</button>
+  </div>
 </div>
-<button id="doneBtn" style="display:none;">Done</button>
 
 <script>
-const form = document.getElementById('kioskForm');
-const qrContainer = document.getElementById('qrContainer');
+const form = document.getElementById('ticketForm');
+const addItemBtn = document.getElementById('addItem');
+const itemsContainer = document.getElementById('items');
+const qrContainer = document.getElementById('qr-container');
+const ticketNumberSpan = document.getElementById('ticket-number');
 const doneBtn = document.getElementById('doneBtn');
-const trackingNumberElem = document.getElementById('trackingNumber');
+
+addItemBtn.addEventListener('click', () => {
+  const div = document.createElement('div');
+  div.className = 'item';
+  div.innerHTML = `<input name="name" placeholder="Item name" required>
+                   <input name="description" placeholder="Description" required>`;
+  itemsContainer.appendChild(div);
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const data = Object.fromEntries(new FormData(form));
+  const items = Array.from(itemsContainer.querySelectorAll('.item')).map(div => {
+    return {
+      name: div.querySelector('[name="name"]').value,
+      description: div.querySelector('[name="description"]').value
+    };
+  });
+  
   const res = await fetch('/submit', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(data)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items })
   });
-  const result = await res.json();
+  const data = await res.json();
 
-  qrContainer.style.display = 'block';
-  doneBtn.style.display = 'inline-block';
+  ticketNumberSpan.textContent = data.ticketNumber;
+  QRCode.toCanvas(document.getElementById('qrcode'), `${window.location.origin}/track/${data.ticketId}`);
   form.style.display = 'none';
-  trackingNumberElem.textContent = `Tracking #: ${result.trackingId}`;
+  qrContainer.style.display = 'block';
 
-  QRCode.toCanvas(document.getElementById('qrcode'), `${window.location.origin}/track.html?id=${result.trackingId}`, (err) => {
-    if (err) console.error(err);
-  });
-
-  setTimeout(() => resetForm(), 60000);
+  setTimeout(() => location.reload(), 60000); // back to start after 1 minute
 });
 
-doneBtn.addEventListener('click', resetForm);
-
-function resetForm() {
-  form.style.display = 'block';
-  qrContainer.style.display = 'none';
-  doneBtn.style.display = 'none';
-  form.reset();
-  document.getElementById('qrcode').innerHTML = '';
-  trackingNumberElem.textContent = '';
-}
+doneBtn.addEventListener('click', () => location.reload());
 </script>
 </body>
 </html>
