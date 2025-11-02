@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 40px; }
+    input, textarea { width: 90%; margin: 10px 0; padding: 10px; font-size: 18px; }
+    button { padding: 10px 20px; font-size: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Lost & Found</h1>
+  <form id="lostForm">
+    <input type="text" id="name" placeholder="Your name" required><br>
+    <textarea id="item" placeholder="Describe what you lost" required></textarea><br>
+    <input type="text" id="contact" placeholder="Email or phone"><br>
+    <button type="submit">Submit</button>
+  </form>
+  <p id="message"></p>
+
+  <script>
+    const form = document.getElementById("lostForm");
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const data = {
+        name: document.getElementById("name").value,
+        item: document.getElementById("item").value,
+        contact: document.getElementById("contact").value
+      };
+      const res = await fetch("/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (result.success) {
+        document.getElementById("message").innerText = "Ticket submitted! Your ID: " + result.ticket.id;
+        form.reset();
+      }
+    });
+  </script>
+</body>
+</html>
