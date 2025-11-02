@@ -1,57 +1,112 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const bodyParser = require("body-parser");
-const QRCode = require("qrcode");
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
+// Path to tickets storage
+const ticketsFile = path.join(__dirname, 'tickets.json');
 
-// Submit ticket route
-app.post("/submit-ticket", async (req, res) => {
-  const ticketsPath = path.join(__dirname, "tickets.json");
-  let tickets = [];
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-  if (fs.existsSync(ticketsPath)) {
-    tickets = JSON.parse(fs.readFileSync(ticketsPath, "utf-8"));
+// Helper function to read tickets
+function readTickets() {
+  try {
+    return JSON.parse(fs.readFileSync(ticketsFile, 'utf8'));
+  } catch (err) {
+    return [];
   }
+}
+
+// Helper function to save tickets
+function saveTickets(tickets) {
+  fs.writeFileSync(ticketsFile, JSON.stringify(tickets, null, 2));
+}
+
+// Submit a new ticket
+app.post('/submit', (req, res) => {
+  const tickets = readTickets();
 
   const newTicket = {
-    id: tickets.length + 1,
-    ...req.body,
-    status: "Submitted",
-    comments: []
+    id: uuidv4(),
+    name: req.body.name || 'Anonymous',
+    email: req.body.email || '',
+    items: req.body.items || [],
+    comments: [],
+    status: 'submitted',
+    createdAt: new Date().toISOString()
   };
+
   tickets.push(newTicket);
-  fs.writeFileSync(ticketsPath, JSON.stringify(tickets, null, 2));
+  saveTickets(tickets);
 
-  // Generate QR code for the ticket
-  const ticketURL = `${req.protocol}://${req.get('host')}/track?id=${newTicket.id}`;
-  try {
-    const qrCodeDataURL = await QRCode.toDataURL(ticketURL);
-    newTicket.qrCode = qrCodeDataURL;
-    res.send({ success: true, ticketId: newTicket.id, qrCode: qrCodeDataURL });
-  } catch (err) {
-    console.error("QR Code generation error:", err);
-    res.status(500).send({ success: false, error: "Failed to generate QR code" });
-  }
+  // Redirect to tracking page with ticket ID in query
+  res.redirect(`/track.html?id=${newTicket.id}`);
 });
 
-// Fetch a single ticket by ID
-app.get("/get-ticket", (req, res) => {
-  const ticketsPath = path.join(__dirname, "tickets.json");
-  const tickets = fs.existsSync(ticketsPath)
-    ? JSON.parse(fs.readFileSync(ticketsPath, "utf-8"))
-    : [];
-
-  const ticket = tickets.find(t => t.id == req.query.id);
-  res.send(ticket || null);
+// Admin dashboard page
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
+// API: Get all tickets (for admin)
+app.get('/api/tickets', (req, res) => {
+  const tickets = readTickets();
+  res.json(tickets);
+});
+
+// API: Get single ticket by ID
+app.get('/api/tickets/:id', (req, res) => {
+  const tickets = readTickets();
+  const ticket = tickets.find(t => t.id === req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+  res.json(ticket);
+});
+
+// API: Add comment to ticket
+app.post('/api/tickets/:id/comments', (req, res) => {
+  const tickets = readTickets();
+  const ticket = tickets.find(t => t.id === req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+  const comment = {
+    text: req.body.text || '',
+    createdAt: new Date().toISOString()
+  };
+
+  ticket.comments.push(comment);
+  saveTickets(tickets);
+  res.json(ticket);
+});
+
+// API: Update ticket status
+app.post('/api/tickets/:id/status', (req, res) => {
+  const tickets = readTickets();
+  const ticket = tickets.find(t => t.id === req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+  ticket.status = req.body.status || ticket.status;
+  saveTickets(tickets);
+  res.json(ticket);
+});
+
+// API: Delete ticket
+app.delete('/api/tickets/:id', (req, res) => {
+  let tickets = readTickets();
+  const ticket = tickets.find(t => t.id === req.params.id);
+  if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+  tickets = tickets.filter(t => t.id !== req.params.id);
+  saveTickets(tickets);
+  res.json({ message: 'Ticket deleted' });
+});
+
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
