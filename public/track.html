@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Track Your Ticket</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="track-container">
+  <h1>Track Your Lost & Found Ticket</h1>
+  <form id="trackForm">
+    <label>Ticket ID:
+      <input type="number" name="ticketId" placeholder="Enter your ticket ID" required>
+    </label>
+    <button type="submit">Track Ticket</button>
+  </form>
+  <div id="ticketInfo"></div>
+</div>
+
+<script>
+const trackForm = document.getElementById("trackForm");
+const ticketInfo = document.getElementById("ticketInfo");
+
+trackForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = trackForm.ticketId.value;
+
+  const res = await fetch(`/track/${id}`);
+  const text = await res.text();
+
+  ticketInfo.innerHTML = text;
+});
+</script>
+</body>
+</html>
