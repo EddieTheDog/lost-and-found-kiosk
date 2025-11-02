@@ -1,0 +1,29 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f0f0f0;
+  margin: 0;
+  padding: 0;
+}
+.kiosk-container, .dashboard-container {
+  max-width: 600px;
+  margin: 50px auto;
+  padding: 20px;
+  background: white;
+  border-radius: 10px;
+}
+h1 { text-align: center; }
+form label {
+  display: block;
+  margin: 10px 0;
+}
+form input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+}
+button {
+  margin-top: 10px;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+.item-entry { margin-bottom: 10px; }
