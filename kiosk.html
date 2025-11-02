@@ -1,103 +1,83 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lost & Found Kiosk</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; }
-    input, textarea, button { font-size: 18px; margin: 10px 0; padding: 10px; }
-    .item { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-    #screensaver { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#333; color:white; font-size:48px; justify-content:center; align-items:center; }
-  </style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lost & Found Kiosk</title>
+<style>
+  body { font-family: 'Arial', sans-serif; margin:0; padding:0; background:#f4f4f4; }
+  #screensaver { display:flex; justify-content:center; align-items:center; position:fixed; top:0; left:0; width:100%; height:100%; background:#222; color:white; font-size:48px; cursor:pointer; z-index:10; }
+  .container { max-width: 700px; margin: 20px auto; padding:20px; background:white; border-radius:10px; box-shadow:0 0 15px rgba(0,0,0,0.2); }
+  h1, h2 { text-align:center; }
+  input, textarea, button { font-size:18px; padding:10px; margin:5px 0; width:100%; }
+  .item { border:1px solid #ddd; padding:10px; margin-bottom:10px; border-radius:5px; }
+  button.add { width:auto; margin-top:10px; background:#4CAF50; color:white; border:none; border-radius:5px; }
+  button.submit { background:#2196F3; color:white; border:none; border-radius:5px; }
+  #message img { max-width:200px; margin-top:10px; }
+</style>
 </head>
 <body>
-  <div id="screensaver">Touch to Start</div>
+<div id="screensaver">Touch to Start</div>
 
-  <div id="startScreen">
-    <h1>Welcome to Lost & Found</h1>
-    <button onclick="startForm()">Start</button>
-  </div>
+<div class="container" id="startScreen">
+  <h1>Welcome to Lost & Found</h1>
+  <button onclick="startForm()">Start</button>
+</div>
 
-  <div id="formScreen" style="display:none;">
-    <h2>Enter Your Information</h2>
-    <input type="text" id="name" placeholder="Your name" required><br>
-    <input type="text" id="contact" placeholder="Email or phone" required><br>
-    <div id="itemsContainer"></div>
-    <button onclick="addItem()">+ Add Item</button><br>
-    <button onclick="submitForm()">Submit</button>
-    <p id="message"></p>
-  </div>
+<div class="container" id="formScreen" style="display:none;">
+  <h2>Submit Lost Items</h2>
+  <input type="text" id="name" placeholder="Your name" required>
+  <input type="text" id="contact" placeholder="Email or phone" required>
+  <div id="itemsContainer"></div>
+  <button class="add" onclick="addItem()">+ Add Item</button>
+  <button class="submit" onclick="submitForm()">Submit</button>
+  <div id="message"></div>
+</div>
 
-  <script>
-    let idleTimer;
-    const idleTime = 60000; // 60 seconds
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script>
+let idleTimer; const idleTime = 90000;
 
-    function resetIdle() {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(showScreensaver, idleTime);
-    }
+function resetIdle(){clearTimeout(idleTimer); idleTimer=setTimeout(showScreensaver,idleTime);}
+function showScreensaver(){document.getElementById("screensaver").style.display="flex"; document.getElementById("formScreen").style.display="none"; document.getElementById("startScreen").style.display="none";}
+document.body.addEventListener("mousemove", resetIdle); document.body.addEventListener("keydown", resetIdle);
+document.getElementById("screensaver").addEventListener("click", startForm); resetIdle();
 
-    function showScreensaver() {
-      document.getElementById("screensaver").style.display = "flex";
-      document.getElementById("formScreen").style.display = "none";
-      document.getElementById("startScreen").style.display = "none";
-    }
+function startForm(){
+  document.getElementById("startScreen").style.display="none";
+  document.getElementById("screensaver").style.display="none";
+  document.getElementById("formScreen").style.display="block";
+  if(document.getElementById("itemsContainer").children.length===0) addItem();
+}
 
-    document.body.addEventListener("mousemove", resetIdle);
-    document.body.addEventListener("keydown", resetIdle);
-    document.getElementById("screensaver").addEventListener("click", startForm);
+function addItem(){
+  const container=document.getElementById("itemsContainer");
+  const div=document.createElement("div"); div.className="item";
+  div.innerHTML=`
+    <input type="text" placeholder="Item name" required>
+    <textarea placeholder="Description" required></textarea>
+    <input type="text" placeholder="Comments (optional)">
+  `;
+  container.appendChild(div);
+}
 
-    resetIdle();
-
-    function startForm() {
-      document.getElementById("startScreen").style.display = "none";
-      document.getElementById("screensaver").style.display = "none";
-      document.getElementById("formScreen").style.display = "block";
-      if (document.getElementById("itemsContainer").children.length === 0) addItem();
-    }
-
-    function addItem() {
-      const container = document.getElementById("itemsContainer");
-      const div = document.createElement("div");
-      div.className = "item";
-      div.innerHTML = `
-        <input type="text" placeholder="Item name" required><br>
-        <textarea placeholder="Description" required></textarea><br>
-        <input type="text" placeholder="Comments (optional)">
-      `;
-      container.appendChild(div);
-    }
-
-    async function submitForm() {
-      const name = document.getElementById("name").value.trim();
-      const contact = document.getElementById("contact").value.trim();
-      if (!name || !contact) { alert("Name and contact are required"); return; }
-
-      const items = Array.from(document.querySelectorAll(".item")).map(div => {
-        const inputs = div.querySelectorAll("input, textarea");
-        return {
-          name: inputs[0].value.trim(),
-          description: inputs[1].value.trim(),
-          comments: inputs[2].value.trim()
-        };
-      });
-
-      if (items.some(i => !i.name || !i.description)) { alert("All item names and descriptions are required"); return; }
-
-      const res = await fetch("/submit", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ name, contact, items })
-      });
-      const result = await res.json();
-      if (result.success) {
-        document.getElementById("message").innerText = `Ticket submitted! Your ID: ${result.ticket.id}`;
-        document.getElementById("formScreen").reset;
-        document.getElementById("itemsContainer").innerHTML = "";
-      } else {
-        document.getElementById("message").innerText = "Error submitting ticket.";
-      }
-    }
-  </script>
+async function submitForm(){
+  const name=document.getElementById("name").value.trim();
+  const contact=document.getElementById("contact").value.trim();
+  if(!name||!contact){alert("Name and contact required");return;}
+  const items=Array.from(document.querySelectorAll(".item")).map(div=>{
+    const inputs=div.querySelectorAll("input, textarea");
+    return {name:inputs[0].value.trim(),description:inputs[1].value.trim(),comments:inputs[2].value.trim()};
+  });
+  if(items.some(i=>!i.name||!i.description)){alert("Item name and description required");return;}
+  const res=await fetch("/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,contact,items})});
+  const result=await res.json();
+  if(result.success){
+    const msg=document.getElementById("message");
+    msg.innerHTML=`Ticket submitted! Your ID: ${result.ticket.id}<br>`;
+    msg.innerHTML+=`<img src="${result.qr}"><br>Scan QR to track`;
+    document.getElementById("itemsContainer").innerHTML=""; document.getElementById("name").value=""; document.getElementById("contact").value="";
+  } else document.getElementById("message").innerText="Error submitting ticket.";
+}
+</script>
 </body>
 </html>
