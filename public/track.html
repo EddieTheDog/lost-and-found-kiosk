@@ -1,29 +1,86 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Track Ticket</title>
+<meta charset="UTF-8">
+<title>Lost & Found Kiosk</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<style>
+  body { font-family: Arial; text-align: center; }
+  #qrContainer { margin-top: 20px; display: none; }
+  #doneBtn { display: none; margin-top: 20px; }
+</style>
 </head>
 <body>
-  <h1>Track Your Ticket</h1>
-  <div id="ticket-info"></div>
 
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
+<h1>Lost & Found Submission</h1>
+<form id="kioskForm">
+  <label>Your Name:<br>
+    <input type="text" name="name" required>
+  </label><br><br>
+  
+  <label>Item Name:<br>
+    <input type="text" name="item" required>
+  </label><br><br>
+  
+  <label>Item Description:<br>
+    <input type="text" name="description">
+  </label><br><br>
+  
+  <button type="submit">Submit</button>
+</form>
 
-    fetch(`/get-ticket?id=${id}`)
-      .then(res => res.json())
-      .then(ticket => {
-        if(ticket) {
-          document.getElementById("ticket-info").innerHTML = `
-            <p>Ticket ID: ${ticket.id}</p>
-            <p>Status: ${ticket.status}</p>
-            <img src="${ticket.qrCode}" alt="Ticket QR Code"/>
-          `;
-        } else {
-          document.getElementById("ticket-info").innerText = "Ticket not found.";
-        }
-      });
-  </script>
+<div id="qrContainer">
+  <h2>Scan this QR to track your ticket</h2>
+  <div id="qrcode"></div>
+  <p id="trackingNumber"></p>
+</div>
+<button id="doneBtn">Done</button>
+
+<script>
+const form = document.getElementById('kioskForm');
+const qrContainer = document.getElementById('qrContainer');
+const doneBtn = document.getElementById('doneBtn');
+const trackingNumberElem = document.getElementById('trackingNumber');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault(); // Prevent page reload
+  const formData = new FormData(form);
+  const data = Object.fromEntries(formData.entries());
+
+  // Send AJAX POST request
+  const response = await fetch('/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const result = await response.json();
+
+  // Show QR code
+  qrContainer.style.display = 'block';
+  doneBtn.style.display = 'inline-block';
+  trackingNumberElem.textContent = `Tracking #: ${result.trackingId}`;
+  QRCode.toCanvas(document.getElementById('qrcode'), `${window.location.origin}/track.html?id=${result.trackingId}`, function (error) {
+    if (error) console.error(error);
+  });
+
+  // Hide form
+  form.style.display = 'none';
+
+  // Auto-return after 1 minute
+  setTimeout(() => resetForm(), 60000);
+});
+
+doneBtn.addEventListener('click', resetForm);
+
+function resetForm() {
+  form.style.display = 'block';
+  qrContainer.style.display = 'none';
+  doneBtn.style.display = 'none';
+  form.reset();
+  document.getElementById('qrcode').innerHTML = '';
+  trackingNumberElem.textContent = '';
+}
+</script>
 </body>
 </html>
