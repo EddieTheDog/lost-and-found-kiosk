@@ -1,58 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Lost & Found Kiosk</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>Lost & Found Kiosk</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 <body>
-  <h1>Submit a Lost or Found Item</h1>
-  <form id="kioskForm" action="/submit" method="POST">
-    <label>
-      Your Name:
-      <input type="text" name="name" required>
-    </label>
-    <label>
-      Your Email:
-      <input type="email" name="email">
-    </label>
-    <div id="itemsContainer">
-      <label>
-        Item Name:
-        <input type="text" name="items[]" required>
-      </label>
-      <label>
-        Item Description:
-        <input type="text" name="items[]" required>
-      </label>
-    </div>
-    <button type="button" id="addItem">+ Add Another Item</button>
-    <br><br>
-    <button type="submit">Submit</button>
-  </form>
+<h1>Lost & Found Submission</h1>
+<form id="kioskForm">
+  <label>Your Name:<input type="text" name="name" required></label><br>
+  <label>Item Name:<input type="text" name="item" required></label><br>
+  <label>Description:<input type="text" name="description"></label><br>
+  <button type="submit">Submit</button>
+</form>
 
-  <script>
-    // Dynamically add new item fields
-    const addItemBtn = document.getElementById('addItem');
-    const container = document.getElementById('itemsContainer');
+<div id="qrContainer" style="display:none;">
+  <h2>Scan to Track</h2>
+  <canvas id="qrcode"></canvas>
+  <p id="trackingNumber"></p>
+</div>
+<button id="doneBtn" style="display:none;">Done</button>
 
-    addItemBtn.addEventListener('click', () => {
-      const itemName = document.createElement('input');
-      itemName.type = 'text';
-      itemName.name = 'items[]';
-      itemName.placeholder = 'Item Name';
-      itemName.required = true;
+<script>
+const form = document.getElementById('kioskForm');
+const qrContainer = document.getElementById('qrContainer');
+const doneBtn = document.getElementById('doneBtn');
+const trackingNumberElem = document.getElementById('trackingNumber');
 
-      const itemDesc = document.createElement('input');
-      itemDesc.type = 'text';
-      itemDesc.name = 'items[]';
-      itemDesc.placeholder = 'Item Description';
-      itemDesc.required = true;
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(form));
+  const res = await fetch('/submit', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  const result = await res.json();
 
-      container.appendChild(document.createElement('br'));
-      container.appendChild(itemName);
-      container.appendChild(itemDesc);
-    });
-  </script>
+  qrContainer.style.display = 'block';
+  doneBtn.style.display = 'inline-block';
+  form.style.display = 'none';
+  trackingNumberElem.textContent = `Tracking #: ${result.trackingId}`;
+
+  QRCode.toCanvas(document.getElementById('qrcode'), `${window.location.origin}/track.html?id=${result.trackingId}`, (err) => {
+    if (err) console.error(err);
+  });
+
+  setTimeout(() => resetForm(), 60000);
+});
+
+doneBtn.addEventListener('click', resetForm);
+
+function resetForm() {
+  form.style.display = 'block';
+  qrContainer.style.display = 'none';
+  doneBtn.style.display = 'none';
+  form.reset();
+  document.getElementById('qrcode').innerHTML = '';
+  trackingNumberElem.textContent = '';
+}
+</script>
 </body>
 </html>
