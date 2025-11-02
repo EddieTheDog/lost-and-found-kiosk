@@ -1,24 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Lost & Found Kiosk</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-  <h1>Lost & Found Kiosk</h1>
-  <form id="kioskForm">
-    <input type="text" name="name" placeholder="Your Name" required>
-    <input type="email" name="email" placeholder="Your Email" required>
+  <h1>Submit a Lost or Found Item</h1>
+  <form id="kioskForm" action="/submit" method="POST">
+    <label>
+      Your Name:
+      <input type="text" name="name" required>
+    </label>
+    <label>
+      Your Email:
+      <input type="email" name="email">
+    </label>
     <div id="itemsContainer">
-      <input type="text" name="items[0][name]" placeholder="Item Name" required>
-      <input type="text" name="items[0][description]" placeholder="Item Description">
+      <label>
+        Item Name:
+        <input type="text" name="items[]" required>
+      </label>
+      <label>
+        Item Description:
+        <input type="text" name="items[]" required>
+      </label>
     </div>
     <button type="button" id="addItem">+ Add Another Item</button>
-    <button type="submit">Submit Ticket</button>
+    <br><br>
+    <button type="submit">Submit</button>
   </form>
-  <div id="qrResult"></div>
-</div>
-<script src="app.js"></script>
+
+  <script>
+    // Dynamically add new item fields
+    const addItemBtn = document.getElementById('addItem');
+    const container = document.getElementById('itemsContainer');
+
+    addItemBtn.addEventListener('click', () => {
+      const itemName = document.createElement('input');
+      itemName.type = 'text';
+      itemName.name = 'items[]';
+      itemName.placeholder = 'Item Name';
+      itemName.required = true;
+
+      const itemDesc = document.createElement('input');
+      itemDesc.type = 'text';
+      itemDesc.name = 'items[]';
+      itemDesc.placeholder = 'Item Description';
+      itemDesc.required = true;
+
+      container.appendChild(document.createElement('br'));
+      container.appendChild(itemName);
+      container.appendChild(itemDesc);
+    });
+  </script>
 </body>
 </html>
