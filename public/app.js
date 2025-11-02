@@ -1,83 +1,46 @@
-// Kiosk
-const ticketForm = document.getElementById("ticketForm");
-const addItemBtn = document.getElementById("addItemBtn");
-const itemsContainer = document.getElementById("itemsContainer");
+document.getElementById("addItem").addEventListener("click", () => {
+  const container = document.getElementById("itemsContainer");
+  const index = container.children.length / 2;
+  const nameInput = document.createElement("input");
+  nameInput.name = `items[${index}][name]`;
+  nameInput.placeholder = "Item Name";
+  nameInput.required = true;
 
-if (addItemBtn) {
-  addItemBtn.addEventListener("click", () => {
-    const div = document.createElement("div");
-    div.classList.add("item-entry");
-    div.innerHTML = `
-      <input type="text" name="itemName" placeholder="Item Name" required>
-      <input type="text" name="itemDescription" placeholder="Item Description" required>
-    `;
-    itemsContainer.appendChild(div);
-  });
-}
+  const descInput = document.createElement("input");
+  descInput.name = `items[${index}][description]`;
+  descInput.placeholder = "Item Description";
 
-if (ticketForm) {
-  ticketForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const formData = new FormData(ticketForm);
-    const items = [];
-    const itemNames = formData.getAll("itemName");
-    const itemDescriptions = formData.getAll("itemDescription");
-    itemNames.forEach((name, i) => items.push({ name, description: itemDescriptions[i] }));
+  container.appendChild(nameInput);
+  container.appendChild(descInput);
+});
 
-    const res = await fetch("/api/tickets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: formData.get("name"),
-        email: formData.get("email"),
-        items
-      })
-    });
+document.getElementById("kioskForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const form = e.target;
+  const data = new FormData(form);
+  const obj = { name: data.get("name"), email: data.get("email"), items: [] };
 
-    const data = await res.json();
-    alert(`Ticket created! Track it here: https://lost-and-found-kiosk.onrender.com/track/${data.id}`);
-    ticketForm.reset();
-    itemsContainer.innerHTML = `<div class="item-entry">
-      <input type="text" name="itemName" placeholder="Item Name" required>
-      <input type="text" name="itemDescription" placeholder="Item Description" required>
-    </div>`;
-  });
-}
+  for (let pair of data.entries()) {
+    if (pair[0].startsWith("items")) {
+      const match = pair[0].match(/items\[(\d+)\]\[(\w+)\]/);
+      if (match) {
+        const i = parseInt(match[1]);
+        const key = match[2];
+        if (!obj.items[i]) obj.items[i] = {};
+        obj.items[i][key] = pair[1];
+      }
+    }
+  }
 
-// Admin dashboard
-async function loadTickets() {
-  const ticketsList = document.getElementById("ticketsList");
-  if (!ticketsList) return;
-  const res = await fetch("/api/tickets");
-  const tickets = await res.json();
-  ticketsList.innerHTML = tickets.map(t => `
-    <div class="ticket">
-      <h3>ID: ${t.id} - ${t.name} (${t.status})</h3>
-      <p>Email: ${t.email}</p>
-      <p>Items: ${t.items.map(i => `${i.name}: ${i.description}`).join(", ")}</p>
-      <p>Comments: ${t.comments.join(", ")}</p>
-      <button onclick="updateStatus(${t.id}, 'Located')">Set Located</button>
-      <button onclick="deleteTicket(${t.id})">Delete</button>
-    </div>
-  `).join("");
-}
-
-async function updateStatus(id, status) {
-  await fetch("/api/tickets/update", {
+  const res = await fetch("/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status })
+    body: JSON.stringify(obj)
   });
-  loadTickets();
-}
 
-async function deleteTicket(id) {
-  await fetch("/api/tickets/delete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id })
-  });
-  loadTickets();
-}
-
-loadTickets();
+  const result = await res.json();
+  if (result.success) {
+    document.getElementById("qrResult").innerHTML = `<h3>Ticket Submitted!</h3><img src="${result.qrCode}">`;
+    form.reset();
+  }
+});
