@@ -11,7 +11,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname)); // Serve kiosk.html and dashboard.html
+app.use(express.static(__dirname)); // Serve HTML, CSS, JS files
 
 // In-memory ticket storage
 let tickets = [];
@@ -42,7 +42,7 @@ app.post("/update/:id", (req, res) => {
   }
 });
 
-// Serve kiosk.html by default
+// Serve kiosk.html at root
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "kiosk.html"));
 });
