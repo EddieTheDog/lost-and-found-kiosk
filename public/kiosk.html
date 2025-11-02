@@ -1,25 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Lost & Found Kiosk</title>
-<link rel="stylesheet" href="style.css">
+  <title>Lost & Found Kiosk</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="kiosk-container">
+<div class="container">
   <h1>Lost & Found Kiosk</h1>
-  <form id="ticketForm">
-    <label>Name:<input type="text" name="name" required></label>
-    <label>Email:<input type="email" name="email" required></label>
+  <form id="kioskForm">
+    <input type="text" name="name" placeholder="Your Name" required>
+    <input type="email" name="email" placeholder="Your Email" required>
     <div id="itemsContainer">
-      <div class="item-entry">
-        <input type="text" name="itemName" placeholder="Item Name" required>
-        <input type="text" name="itemDescription" placeholder="Item Description" required>
-      </div>
+      <input type="text" name="items[0][name]" placeholder="Item Name" required>
+      <input type="text" name="items[0][description]" placeholder="Item Description">
     </div>
-    <button type="button" id="addItemBtn">Add Another Item</button>
+    <button type="button" id="addItem">+ Add Another Item</button>
     <button type="submit">Submit Ticket</button>
   </form>
+  <div id="qrResult"></div>
 </div>
 <script src="app.js"></script>
 </body>
