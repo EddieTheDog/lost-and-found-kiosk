@@ -1,125 +1,115 @@
 import express from "express";
-import fs from "fs-extra";
+import fs from "fs";
 import path from "path";
-import bodyParser from "body-parser";
-import QRCode from "qrcode";
 import nodemailer from "nodemailer";
+import QRCode from "qrcode";
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-const TICKETS_FILE = path.join("./tickets.json");
+const PORT = 10000;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static("public"));
+const ticketsFile = path.join(process.cwd(), "tickets.json");
 
-// Ensure tickets.json exists
-const loadTickets = async () => {
-  if (!(await fs.pathExists(TICKETS_FILE))) {
-    await fs.writeJson(TICKETS_FILE, []);
+// Middleware
+app.use(express.static(path.join(process.cwd(), "public")));
+app.use(express.json());
+
+// Helper to read/write tickets
+function readTickets() {
+  try {
+    const data = fs.readFileSync(ticketsFile);
+    return JSON.parse(data);
+  } catch {
+    return [];
   }
-  return fs.readJson(TICKETS_FILE);
-};
+}
 
-const saveTickets = async (tickets) => {
-  await fs.writeJson(TICKETS_FILE, tickets, { spaces: 2 });
-};
+function saveTickets(tickets) {
+  fs.writeFileSync(ticketsFile, JSON.stringify(tickets, null, 2));
+}
 
-// Nodemailer setup (example with Gmail)
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// ---------------- ROUTES ----------------
-
-// Kiosk form submission
-app.post("/submit", async (req, res) => {
-  const { name, email, items } = req.body;
-  if (!name || !email || !items || items.length === 0) {
-    return res.status(400).send("Missing required fields.");
-  }
-
-  const tickets = await loadTickets();
-  const id = Date.now();
-  const ticket = {
-    id,
-    name,
-    email,
-    items,
+// Submit a new ticket
+app.post("/api/tickets", async (req, res) => {
+  const tickets = readTickets();
+  const newTicket = {
+    id: Date.now(),
+    name: req.body.name,
+    email: req.body.email,
+    items: req.body.items,
+    status: "Searching",
     comments: [],
-    status: "Submitted",
-    createdAt: new Date().toISOString(),
   };
-  tickets.push(ticket);
-  await saveTickets(tickets);
 
   // Generate QR code
-  const url = `${req.protocol}://${req.get("host")}/track/${id}`;
-  const qrDataURL = await QRCode.toDataURL(url);
+  newTicket.qr = await QRCode.toDataURL(`https://lost-and-found-kiosk.onrender.com/track/${newTicket.id}`);
 
-  // Send email
+  tickets.push(newTicket);
+  saveTickets(tickets);
+
+  // Send email notification
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: `Lost & Found Ticket #${id}`,
-      html: `<p>Your ticket has been submitted.</p>
-             <p>Track it here: <a href="${url}">${url}</a></p>
-             <img src="${qrDataURL}" alt="QR Code" />`,
+    const transporter = nodemailer.createTransport({
+      // configure your email service
+      service: "gmail",
+      auth: {
+        user: "YOUR_EMAIL@gmail.com",
+        pass: "YOUR_EMAIL_PASSWORD",
+      },
     });
-  } catch (err) {
-    console.error("Email send error:", err);
+
+    await transporter.sendMail({
+      from: '"Lost & Found" <YOUR_EMAIL@gmail.com>',
+      to: newTicket.email,
+      subject: "Lost & Found Ticket Created",
+      html: `Your ticket ID: ${newTicket.id}<br>
+             Track your ticket: <a href="https://lost-and-found-kiosk.onrender.com/track/${newTicket.id}">Track Here</a>
+             <br><img src="${newTicket.qr}" />`,
+    });
+  } catch (e) {
+    console.log("Email error:", e);
   }
 
-  res.json({ ticketId: id, qr: qrDataURL });
+  res.json(newTicket);
 });
 
-// Admin dashboard data
-app.get("/api/tickets", async (req, res) => {
-  const tickets = await loadTickets();
+// Get all tickets (admin)
+app.get("/api/tickets", (req, res) => {
+  const tickets = readTickets();
   res.json(tickets);
 });
 
-// Update ticket
-app.post("/api/tickets/:id", async (req, res) => {
-  const tickets = await loadTickets();
-  const ticket = tickets.find((t) => t.id === parseInt(req.params.id));
-  if (!ticket) return res.status(404).send("Ticket not found");
+// Update ticket (status, comments)
+app.post("/api/tickets/update", (req, res) => {
+  const tickets = readTickets();
+  const ticket = tickets.find(t => t.id === req.body.id);
+  if (!ticket) return res.status(404).json({ error: "Ticket not found" });
 
-  const { status, comments } = req.body;
-  if (status) ticket.status = status;
-  if (comments) ticket.comments.push(...comments);
+  if (req.body.status) ticket.status = req.body.status;
+  if (req.body.comment) ticket.comments.push(req.body.comment);
 
-  await saveTickets(tickets);
+  saveTickets(tickets);
   res.json(ticket);
 });
 
 // Delete ticket
-app.delete("/api/tickets/:id", async (req, res) => {
-  let tickets = await loadTickets();
-  tickets = tickets.filter((t) => t.id !== parseInt(req.params.id));
-  await saveTickets(tickets);
-  res.sendStatus(200);
+app.post("/api/tickets/delete", (req, res) => {
+  let tickets = readTickets();
+  tickets = tickets.filter(t => t.id !== req.body.id);
+  saveTickets(tickets);
+  res.json({ success: true });
 });
 
-// Ticket tracking page
-app.get("/track/:id", async (req, res) => {
-  const tickets = await loadTickets();
-  const ticket = tickets.find((t) => t.id === parseInt(req.params.id));
-  if (!ticket) return res.status(404).send("Ticket not found");
-  res.json(ticket);
+// Track ticket by ID
+app.get("/track/:id", (req, res) => {
+  const tickets = readTickets();
+  const ticket = tickets.find(t => t.id === Number(req.params.id));
+  if (!ticket) return res.send("Ticket not found");
+  res.send(`
+    <h1>Ticket ID: ${ticket.id}</h1>
+    <p>Name: ${ticket.name}</p>
+    <p>Status: ${ticket.status}</p>
+    <p>Items: ${JSON.stringify(ticket.items)}</p>
+    <p>Comments: ${ticket.comments.join(", ")}</p>
+  `);
 });
-
-// Serve dashboard and kiosk HTML
-app.get("/dashboard", (req, res) =>
-  res.sendFile(path.join("./public/dashboard.html"))
-);
-app.get("/", (req, res) =>
-  res.sendFile(path.join("./public/kiosk.html"))
-);
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
