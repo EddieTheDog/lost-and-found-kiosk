@@ -6,10 +6,55 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="dashboard-container">
-  <h1>Admin Dashboard</h1>
-  <div id="ticketsList"></div>
-</div>
-<script src="app.js"></script>
+<h1>Admin Dashboard</h1>
+<div id="tickets"></div>
+
+<script>
+async function loadTickets() {
+  const res = await fetch('/admin/tickets');
+  const tickets = await res.json();
+  const container = document.getElementById('tickets');
+  container.innerHTML = tickets.map(t => `
+    <div style="border:1px solid black; margin:10px; padding:10px;">
+      <p><strong>ID:</strong> ${t.id}</p>
+      <p><strong>Name:</strong> ${t.name}</p>
+      <p><strong>Item:</strong> ${t.item}</p>
+      <p><strong>Description:</strong> ${t.description}</p>
+      <p><strong>Status:</strong> ${t.status}</p>
+      <p><strong>Comments:</strong> ${t.comments.map(c=>c.text).join(', ')}</p>
+      <input type="text" placeholder="Add comment" id="comment-${t.id}">
+      <button onclick="addComment('${t.id}')">Add Comment</button>
+      <select id="status-${t.id}">
+        <option value="submitted">Submitted</option>
+        <option value="searching">Searching</option>
+        <option value="located">Located</option>
+      </select>
+      <button onclick="updateStatus('${t.id}')">Update Status</button>
+      <button onclick="deleteTicket('${t.id}')">Delete</button>
+    </div>
+  `).join('');
+}
+
+async function addComment(id) {
+  const text = document.getElementById(`comment-${id}`).value;
+  if(!text) return;
+  await fetch(`/admin/ticket/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({comment:text}) });
+  loadTickets();
+}
+
+async function updateStatus(id) {
+  const status = document.getElementById(`status-${id}`).value;
+  await fetch(`/admin/ticket/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status}) });
+  loadTickets();
+}
+
+async function deleteTicket(id) {
+  if(!confirm('Are you sure?')) return;
+  await fetch(`/admin/ticket/${id}`, { method:'DELETE' });
+  loadTickets();
+}
+
+loadTickets();
+</script>
 </body>
 </html>
