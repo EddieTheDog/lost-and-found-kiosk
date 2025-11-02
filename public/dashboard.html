@@ -1,68 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Dashboard</title>
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-    th { background: #f4f4f4; }
-    button { padding: 5px 10px; margin: 2px; }
-    textarea { width: 100%; }
-  </style>
+<meta charset="UTF-8">
+<title>Admin Dashboard</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div class="dashboard-container">
   <h1>Admin Dashboard</h1>
-  <table id="ticketsTable">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>Contact</th>
-        <th>Items</th>
-        <th>Status</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <script>
-    async function fetchTickets() {
-      const res = await fetch("/tickets");
-      const tickets = await res.json();
-      const tbody = document.querySelector("#ticketsTable tbody");
-      tbody.innerHTML = "";
-      tickets.forEach(ticket => {
-        const tr = document.createElement("tr");
-        const itemsHTML = ticket.items.map(i => `<strong>${i.name}</strong>: ${i.description} (${i.comments || ""})`).join("<br>");
-        tr.innerHTML = `
-          <td>${ticket.id}</td>
-          <td>${ticket.name}</td>
-          <td>${ticket.contact}</td>
-          <td>${itemsHTML}</td>
-          <td>${ticket.status}</td>
-          <td>
-            <button onclick="updateStatus(${ticket.id}, 'claimed')">Claim</button>
-            <button onclick="updateStatus(${ticket.id}, 'closed')">Close</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    async function updateStatus(id, status) {
-      await fetch(`/update/${id}`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ status })
-      });
-      fetchTickets();
-    }
-
-    fetchTickets();
-    setInterval(fetchTickets, 5000);
-  </script>
+  <div id="ticketsList"></div>
+</div>
+<script src="app.js"></script>
 </body>
 </html>
