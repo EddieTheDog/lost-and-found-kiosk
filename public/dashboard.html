@@ -11,49 +11,49 @@
 
 <script>
 async function loadTickets() {
-  const res = await fetch('/admin/tickets');
+  const res = await fetch('/api/tickets');
   const tickets = await res.json();
   const container = document.getElementById('tickets');
-  container.innerHTML = tickets.map(t => `
-    <div style="border:1px solid black; margin:10px; padding:10px;">
-      <p><strong>ID:</strong> ${t.id}</p>
-      <p><strong>Name:</strong> ${t.name}</p>
-      <p><strong>Item:</strong> ${t.item}</p>
-      <p><strong>Description:</strong> ${t.description}</p>
-      <p><strong>Status:</strong> ${t.status}</p>
-      <p><strong>Comments:</strong> ${t.comments.map(c=>c.text).join(', ')}</p>
-      <input type="text" placeholder="Add comment" id="comment-${t.id}">
-      <button onclick="addComment('${t.id}')">Add Comment</button>
-      <select id="status-${t.id}">
-        <option value="submitted">Submitted</option>
-        <option value="searching">Searching</option>
-        <option value="located">Located</option>
-      </select>
-      <button onclick="updateStatus('${t.id}')">Update Status</button>
-      <button onclick="deleteTicket('${t.id}')">Delete</button>
-    </div>
-  `).join('');
+  container.innerHTML = '';
+  tickets.forEach((t, idx) => {
+    const div = document.createElement('div');
+    div.className = 'ticket';
+    div.innerHTML = `
+      <h3>Ticket #${t.ticketNumber} (${t.status})</h3>
+      <ul>${t.items.map((i, ii) => `<li>${i.name}: ${i.description} <button onclick="addComment(${idx},${ii})">Comment</button></li>`).join('')}</ul>
+      <button onclick="updateStatus('${t.ticketId}','Located')">Located</button>
+      <button onclick="updateStatus('${t.ticketId}','Searching')">Searching</button>
+      <button onclick="deleteTicket('${t.ticketId}')">Delete</button>
+    `;
+    container.appendChild(div);
+  });
 }
 
-async function addComment(id) {
-  const text = document.getElementById(`comment-${id}`).value;
-  if(!text) return;
-  await fetch(`/admin/ticket/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({comment:text}) });
-  loadTickets();
-}
-
-async function updateStatus(id) {
-  const status = document.getElementById(`status-${id}`).value;
-  await fetch(`/admin/ticket/${id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status}) });
+async function updateStatus(id, status) {
+  await fetch(`/api/tickets/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
   loadTickets();
 }
 
 async function deleteTicket(id) {
-  if(!confirm('Are you sure?')) return;
-  await fetch(`/admin/ticket/${id}`, { method:'DELETE' });
+  await fetch(`/api/tickets/${id}`, { method: 'DELETE' });
   loadTickets();
 }
 
+function addComment(ticketIndex, itemIndex) {
+  const comment = prompt('Enter comment:');
+  if (!comment) return;
+  fetch(`/api/tickets/${ticketIndex}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ comment, itemIndex })
+  }).then(loadTickets);
+}
+
+setInterval(loadTickets, 5000); // auto-refresh
 loadTickets();
 </script>
 </body>
