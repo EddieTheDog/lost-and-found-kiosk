@@ -1,101 +1,125 @@
 import express from "express";
-import cors from "cors";
-import path from "path";
 import fs from "fs-extra";
-import nodemailer from "nodemailer";
+import path from "path";
+import bodyParser from "body-parser";
 import QRCode from "qrcode";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import nodemailer from "nodemailer";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.static(__dirname));
+const PORT = process.env.PORT || 10000;
+const TICKETS_FILE = path.join("./tickets.json");
 
-// Persistent ticket storage
-const TICKETS_FILE = path.join(__dirname, "tickets.json");
-const loadTickets = async () => fs.pathExists(TICKETS_FILE) ? fs.readJson(TICKETS_FILE) : [];
-const saveTickets = tickets => fs.writeJson(TICKETS_FILE, tickets, { spaces: 2 });
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static("public"));
 
-// Nodemailer setup
+// Ensure tickets.json exists
+const loadTickets = async () => {
+  if (!(await fs.pathExists(TICKETS_FILE))) {
+    await fs.writeJson(TICKETS_FILE, []);
+  }
+  return fs.readJson(TICKETS_FILE);
+};
+
+const saveTickets = async (tickets) => {
+  await fs.writeJson(TICKETS_FILE, tickets, { spaces: 2 });
+};
+
+// Nodemailer setup (example with Gmail)
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
-// Create a new ticket
-app.post("/submit", async (req, res) => {
-  const { name, contact, items } = req.body;
-  if (!name || !contact || !items || items.length === 0) return res.status(400).json({ success: false, message: "Required fields missing" });
+// ---------------- ROUTES ----------------
 
-  let tickets = await loadTickets();
-  const id = tickets.length ? tickets[tickets.length - 1].id + 1 : 1;
-  const ticket = { id, name, contact, items, status: "Open", comments: [], time: new Date() };
+// Kiosk form submission
+app.post("/submit", async (req, res) => {
+  const { name, email, items } = req.body;
+  if (!name || !email || !items || items.length === 0) {
+    return res.status(400).send("Missing required fields.");
+  }
+
+  const tickets = await loadTickets();
+  const id = Date.now();
+  const ticket = {
+    id,
+    name,
+    email,
+    items,
+    comments: [],
+    status: "Submitted",
+    createdAt: new Date().toISOString(),
+  };
   tickets.push(ticket);
   await saveTickets(tickets);
 
-  // Generate QR code URL
-  const trackUrl = `${process.env.SERVICE_URL || "http://localhost:10000"}/track/${id}`;
-  const qrDataURL = await QRCode.toDataURL(trackUrl);
+  // Generate QR code
+  const url = `${req.protocol}://${req.get("host")}/track/${id}`;
+  const qrDataURL = await QRCode.toDataURL(url);
 
-  // Send confirmation email
-  if (contact) {
-    const mailOptions = {
+  // Send email
+  try {
+    await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: contact,
+      to: email,
       subject: `Lost & Found Ticket #${id}`,
-      html: `<p>Hi ${name},</p>
-             <p>Your ticket has been submitted. Ticket ID: ${id}</p>
-             <p>Scan this QR code to track your ticket:</p>
-             <img src="${qrDataURL}" alt="QR Code"><br>
-             <a href="${trackUrl}">Track your ticket</a>`
-    };
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) console.log(err);
-      else console.log("Email sent: " + info.response);
+      html: `<p>Your ticket has been submitted.</p>
+             <p>Track it here: <a href="${url}">${url}</a></p>
+             <img src="${qrDataURL}" alt="QR Code" />`,
     });
+  } catch (err) {
+    console.error("Email send error:", err);
   }
 
-  res.json({ success: true, ticket, qr: qrDataURL });
+  res.json({ ticketId: id, qr: qrDataURL });
 });
 
-// Get all tickets
-app.get("/tickets", async (req, res) => res.json(await loadTickets()));
+// Admin dashboard data
+app.get("/api/tickets", async (req, res) => {
+  const tickets = await loadTickets();
+  res.json(tickets);
+});
 
-// Update ticket status or add comment
-app.post("/update/:id", async (req, res) => {
-  const { status, comment, itemIndex } = req.body;
-  let tickets = await loadTickets();
-  const ticket = tickets.find(t => t.id == req.params.id);
-  if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
+// Update ticket
+app.post("/api/tickets/:id", async (req, res) => {
+  const tickets = await loadTickets();
+  const ticket = tickets.find((t) => t.id === parseInt(req.params.id));
+  if (!ticket) return res.status(404).send("Ticket not found");
 
+  const { status, comments } = req.body;
   if (status) ticket.status = status;
-  if (comment) {
-    if (typeof itemIndex === "number" && ticket.items[itemIndex]) ticket.items[itemIndex].comments = (ticket.items[itemIndex].comments || "") + " | " + comment;
-    else ticket.comments.push(comment);
-  }
+  if (comments) ticket.comments.push(...comments);
 
   await saveTickets(tickets);
-  res.json({ success: true, ticket });
+  res.json(ticket);
 });
 
 // Delete ticket
-app.delete("/delete/:id", async (req, res) => {
+app.delete("/api/tickets/:id", async (req, res) => {
   let tickets = await loadTickets();
-  tickets = tickets.filter(t => t.id != req.params.id);
+  tickets = tickets.filter((t) => t.id !== parseInt(req.params.id));
   await saveTickets(tickets);
-  res.json({ success: true });
+  res.sendStatus(200);
 });
 
-// Pages
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "kiosk.html")));
-app.get("/dashboard", (req, res) => res.sendFile(path.join(__dirname, "dashboard.html")));
-app.get("/track/:id?", (req, res) => res.sendFile(path.join(__dirname, "track.html")));
+// Ticket tracking page
+app.get("/track/:id", async (req, res) => {
+  const tickets = await loadTickets();
+  const ticket = tickets.find((t) => t.id === parseInt(req.params.id));
+  if (!ticket) return res.status(404).send("Ticket not found");
+  res.json(ticket);
+});
 
-const PORT = process.env.PORT || 10000;
+// Serve dashboard and kiosk HTML
+app.get("/dashboard", (req, res) =>
+  res.sendFile(path.join("./public/dashboard.html"))
+);
+app.get("/", (req, res) =>
+  res.sendFile(path.join("./public/kiosk.html"))
+);
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
