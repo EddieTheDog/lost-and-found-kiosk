@@ -2,24 +2,25 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lost & Found Dashboard</title>
+  <title>Admin Dashboard</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
     th { background: #f4f4f4; }
     button { padding: 5px 10px; margin: 2px; }
+    textarea { width: 100%; }
   </style>
 </head>
 <body>
-  <h1>Lost & Found Dashboard</h1>
+  <h1>Admin Dashboard</h1>
   <table id="ticketsTable">
     <thead>
       <tr>
         <th>ID</th>
         <th>Name</th>
-        <th>Item</th>
         <th>Contact</th>
+        <th>Items</th>
         <th>Status</th>
         <th>Actions</th>
       </tr>
@@ -35,15 +36,16 @@
       tbody.innerHTML = "";
       tickets.forEach(ticket => {
         const tr = document.createElement("tr");
+        const itemsHTML = ticket.items.map(i => `<strong>${i.name}</strong>: ${i.description} (${i.comments || ""})`).join("<br>");
         tr.innerHTML = `
           <td>${ticket.id}</td>
           <td>${ticket.name}</td>
-          <td>${ticket.item}</td>
-          <td>${ticket.contact || ""}</td>
+          <td>${ticket.contact}</td>
+          <td>${itemsHTML}</td>
           <td>${ticket.status}</td>
           <td>
-            ${ticket.status === "open" ? `<button onclick="updateStatus(${ticket.id}, 'claimed')">Claim</button>` : ""}
-            ${ticket.status !== "closed" ? `<button onclick="updateStatus(${ticket.id}, 'closed')">Close</button>` : ""}
+            <button onclick="updateStatus(${ticket.id}, 'claimed')">Claim</button>
+            <button onclick="updateStatus(${ticket.id}, 'closed')">Close</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -53,14 +55,14 @@
     async function updateStatus(id, status) {
       await fetch(`/update/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ status })
       });
       fetchTickets();
     }
 
     fetchTickets();
-    setInterval(fetchTickets, 5000); // auto-refresh every 5 seconds
+    setInterval(fetchTickets, 5000);
   </script>
 </body>
 </html>
